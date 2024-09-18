@@ -39,6 +39,10 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
     string[] internal s_dogTokenUris;
     uint256 internal immutable i_mintFee;
 
+    // Events
+    event NftRequested(uint256 indexed requestId, address requester);
+    event NftMinted(Breed dogBreed, address minter);
+
   // When we mint an NFT, we will trigger a Chainlink VRF call to get us a random number
   // Using that number we will get a random NFT
   // Random NFT we will use is either a PUG(Super rare), SHIBA INU(sort of rare), St. Benard(common)
@@ -69,6 +73,7 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
     i_callbackGasLimit, 
     NUM_WORDS);
     s_requestIdToSender[requestId] = msg.sender; // the requestId is set to msg.sender when the requestNft() is called.
+    emit NftRequested(requestId, msg.sender);
   }
 
   function fulfillRandomWords(
@@ -88,6 +93,7 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
     Breed dogBreed = getBreedFromModdedRng(moddedRng);
     _safeMint(nftOwner, newTokenId);
     _setTokenURI(newTokenId, /* that breed's tokenURI */ s_dogTokenUris[uint256(dogBreed)]);
+    emit NftMinted(dogBreed, dogOwner);
   }
 
     function withdraw() public onlyOwner {
