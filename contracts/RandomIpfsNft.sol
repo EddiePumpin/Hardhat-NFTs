@@ -66,13 +66,13 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
   }
 
   function requestNft() public payable returns (uint256 requestId) {
-    // This function will kick off the VRF AND whoever call this function will mint an NFT.
+    // This function will kick off the VRF and whoever calls this function will mint an NFT.
     // A mapping between requestId and this function
     if (msg.value < i_mintFee) { 
       revert RandomIpfsNft__NotEnoughETH();
     }
     // The mintFee payer makes a request to the chainlink node for a random number
-    requestId = i_vrfCoordinator.requestRequestWords(VRFV2PlusClient.RandomWordsRequest({
+    requestId = i_vrfCoordinator.requestRandomWords(VRFV2PlusClient.RandomWordsRequest({
       i_gasLane,
       i_subscriptionId,
       REQUEST_CONFIRMATIONS,
@@ -80,8 +80,8 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
       NUM_WORDS
     })
     );
-    s_requestIdToSender[requestId] = msg.sender; // the requestId is set to msg.sender when the requestNft() is called.
-    emit NftRequested(requestId, msg.sender);
+    s_requestIdToSender[requestId] = msg.sender; // (IMO, msg.sender(address) is store in an "array" where requestId(value) is stored). The requestId is set to msg.sender when the requestNft() is called.
+    emit NftRequested(requestId, msg.sender); // The VRF coordinator emits an event.
   }
 
   function fulfillRandomWords(
@@ -93,7 +93,7 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
     uint256 newTokenId = s_tokenCounter;
     // What does the token look like?
     uint256 moddedRng = randomWords[0] % MAX_CHANCE_VALUE; // moddedRng will be any value between 0 and 99. It is like an index
-    // If we get. 0 to 10 is PUG, 11 to 30 is SHIBA, 30 to 100 is St. Benard
+    // If we get. 0 to 10 is PUG, 11 to 30 is SHIBA, 31 to 100 is St. Benard
     // 7 -> PUG
     // 88 -> St. Benard
     // 45 -> St. Benard
@@ -116,6 +116,7 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
     }
   }
 
+
 // Once the random number is gotten, the contract uses the chanceArray is used to figure out which NFT is going to be used for the minting.
 
   function getBreedFromModdedRng(
@@ -123,7 +124,7 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
   ) public pure returns (Breed) {
     //This is to get random number just as in Raffle smart contract
     uint256 cumulativeSum = 0;
-    uint256[3] memory chanceArray = getChanceArray();
+    uint256[3] memory chanceArray = getChanceArray(); // This is where the rarity came in. This line declares a fixed-size array of three uint256 elements in memory and assigns it the result of a function call getChanceArray().
     // modelling = 25
     // i = 0, for second iteration it will be 1
     // cumulativeSum = 0, for second iteration it will be 10.

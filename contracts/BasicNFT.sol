@@ -17,7 +17,7 @@ contract BasicNft is ERC721 {
   function mintNft() public returns (uint256) {
     // _safeMint() is from openzeppelin
     _safeMint(msg.sender, s_tokenCounter); // This mean "Mint the tokens to whoever calls the mint function". The second parameter is tokenId(It is unique)
-    s_tokenCounter = s_tokenCounter + 1; //This increments the token counter each time a new NFT is minted, ensuring each NFT gets a unique token ID.
+    s_tokenCounter = s_tokenCounter + 1; //This increase the token counter each time a new NFT is minted, ensuring each NFT gets a unique token ID.
     return s_tokenCounter;
   }
 
