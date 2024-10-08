@@ -1,18 +1,17 @@
-//SPDX-Lincense-Identifier: MIT;
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/src/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
 import {VRFV2PlusClient} from "@chainlink/contracts/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
-import "@chainlink/contracts/src/v0.8/vrf/interfaces/VRFCoordinatorV2Interface.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import {IVRFCoordinatorV2Plus} from "@chainlink/contracts/src/v0.8/vrf/dev/interfaces/IVRFCoordinatorV2Plus.sol";
+import {ERC721URIStorage, ERC721} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 // ERC721URIStorage is extending ERC721, so the constructor will remain unchange
-import "@openzeppelin/contracts/access/Ownable.sol";
 
 error RamdomIpfsNft__RangeOutOfBounds();
 error RandomIpfsNft__NotEnoughETH();
 error RandomIpfsNft__TransferFailed();
 
-contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
+contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage {
   // Type Declaration
   enum Breed {
     PUG,
@@ -22,7 +21,7 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
 
   // Chainlink VRF Variables
 
-  VRFCoordinatorV2Interface private immutable i_vrfCoordinator; // By using VRFCoordinatorV2Interface as a data type, the contract can interact with the Chainlink VRF Coordinator through the functions declared in the interface without having access to the full contract code.
+  IVRFCoordinatorV2Plus private immutable i_vrfCoordinator; // By using VRFCoordinatorV2Interface as a data type, the contract can interact with the Chainlink VRF Coordinator through the functions declared in the interface without having access to the full contract code.
   uint64 private immutable i_subscriptionId;
   bytes32 private immutable i_gasLane;
   uint32 private immutable i_callbackGasLimit;
@@ -30,7 +29,7 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
   uint32 private constant NUM_WORDS = 1;
 
   // Chainlink VRF Variables
-  mapping(address => uint256) public s_requestIdToSender;
+  mapping(uint256 => address) public s_requestIdToSender;
 
   // NFT variables
   uint256 public s_tokenCounter; //  initializing s_tokenCounter is not strictly necessary if you're comfortable with it starting at its default value, which is 0. Solidity initializes state variables to their default values if they are not explicitly initialized.
@@ -51,34 +50,38 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
 
   constructor(
     //uint256 subscriptionId
-    address vrfCoordinatorV2,
+    address vrfCoordinatorV2_5,
     uint64 subscriptionId,
     bytes32 gasLane,
     uint32 callbackGasLimit,
     string[3] memory dogTokenUris,
     uint256 mintFee
-  ) VRFConsumerBaseV2Plus(vrfCoordinatorV2) ERC721("MethNFT", "MNFT") {
-    i_vrfCoordinator = VRFCoordinatorV2Interface(vrfCoordinatorV2);
+  ) VRFConsumerBaseV2Plus(vrfCoordinatorV2_5) ERC721("MethNFT", "MNFT") {
+    i_vrfCoordinator = IVRFCoordinatorV2Plus(vrfCoordinatorV2_5);
     i_subscriptionId = subscriptionId;
     i_gasLane = gasLane;
     s_dogTokenUris = dogTokenUris;
     i_mintFee = mintFee;
+    i_callbackGasLimit = callbackGasLimit;
   }
 
   function requestNft() public payable returns (uint256 requestId) {
     // This function will kick off the VRF and whoever calls this function will mint an NFT.
     // A mapping between requestId and this function
-    if (msg.value < i_mintFee) { 
+    if (msg.value < i_mintFee) {
       revert RandomIpfsNft__NotEnoughETH();
     }
+
     // The mintFee payer makes a request to the chainlink node for a random number
-    requestId = i_vrfCoordinator.requestRandomWords(VRFV2PlusClient.RandomWordsRequest({
-      i_gasLane,
-      i_subscriptionId,
-      REQUEST_CONFIRMATIONS,
-      i_callbackGasLimit,
-      NUM_WORDS
-    })
+    requestId = i_vrfCoordinator.requestRandomWords(
+      VRFV2PlusClient.RandomWordsRequest({
+        keyHash: i_gasLane,
+        subId: i_subscriptionId,
+        requestConfirmations: REQUEST_CONFIRMATIONS,
+        callbackGasLimit: i_callbackGasLimit,
+        numWords: NUM_WORDS,
+        extraArgs: ""
+      })
     );
     s_requestIdToSender[requestId] = msg.sender; // (IMO, msg.sender(address) is store in an "array" where requestId(value) is stored). The requestId is set to msg.sender when the requestNft() is called.
     emit NftRequested(requestId, msg.sender); // The VRF coordinator emits an event.
@@ -86,7 +89,7 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
 
   function fulfillRandomWords(
     uint256 requestId,
-    uint256[] memory randomWords
+    uint256[] calldata randomWords
   ) internal override {
     // By default, the chainlink node will call fulfill random words and the owner of the NFT will be the chainlink node.
     address nftOwner = s_requestIdToSender[requestId]; // Now, whoever call the requestNft() will be the NFT owner.
@@ -103,7 +106,8 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
     _safeMint(nftOwner, newTokenId);
     _setTokenURI(
       newTokenId,
-      /* that breed's tokenURI */ s_dogTokenUris[uint256(dogBreed)]
+      /* that breed's tokenURI */
+      s_dogTokenUris[uint256(dogBreed)]
     );
     emit NftMinted(dogBreed, nftOwner);
   }
@@ -116,8 +120,7 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
     }
   }
 
-
-// Once the random number is gotten, the contract uses the chanceArray is used to figure out which NFT is going to be used for the minting.
+  // Once the random number is gotten, the contract uses the chanceArray is used to figure out which NFT is going to be used for the minting.
 
   function getBreedFromModdedRng(
     uint256 moddedRng
@@ -125,6 +128,7 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
     //This is to get random number just as in Raffle smart contract
     uint256 cumulativeSum = 0;
     uint256[3] memory chanceArray = getChanceArray(); // This is where the rarity came in. This line declares a fixed-size array of three uint256 elements in memory and assigns it the result of a function call getChanceArray().
+
     // modelling = 25
     // i = 0, for second iteration it will be 1
     // cumulativeSum = 0, for second iteration it will be 10.
@@ -141,7 +145,7 @@ contract RandomIpfsNft is VRFConsumerBaseV2Plus, ERC721URIStorage, Ownable {
     revert RamdomIpfsNft__RangeOutOfBounds();
   }
 
-  function getChanceArray() public returns (uint256[3] memory) {
+  function getChanceArray() public pure returns (uint256[3] memory) {
     // The chanceArray() will represent different chances of different dogs.
     return [10, 30, MAX_CHANCE_VALUE]; // Index 0 has a 10% chance of happening, index 1 has a 20%[30 -10] chance of happening while index 2 has 60% chance of happening[10 + 30 - 100]
   } // [3] means size 3

@@ -81,7 +81,7 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
   }
 }
 
-// This function will upload our token to pinata
+// This function will upload our token(NFT) to pinata
 async function handleTokenUris() {
   tokenUris = []
   // We need to store the image in IPFS and
